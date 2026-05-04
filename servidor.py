@@ -178,7 +178,13 @@ from flask import Flask, jsonify, render_template_string, request, send_file
 def api_abrir_rjo():
     rjo = BASE_DIR / "RJO.xlsx"
     if rjo.exists():
-        os.startfile(str(rjo))
+        try:
+            if hasattr(os, "startfile"):
+                os.startfile(str(rjo))
+            else:
+                adicionar_log("[AVISO] Abertura direta de arquivo não suportada neste ambiente (Linux/Docker).")
+        except Exception as e:
+            adicionar_log(f"[ERRO] Falha ao abrir arquivo: {e}")
         return jsonify({"ok": True})
     return jsonify({"ok": False, "msg": "RJO.xlsx não encontrado"})
 
