@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.xlsx
+*.csv
+downloads/
+screenshots/
+logs.txt
+status.txt
+test_result.txt
+frames_dump.txt
+inspect_output.txt
+inputs.txt
