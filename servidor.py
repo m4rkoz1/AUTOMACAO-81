@@ -205,6 +205,17 @@ def download_filial(filial):
     return f"Planilha {filial}.xlsx ainda não foi gerada", 404
 
 
+@app.route("/api/planilhas", methods=["GET"])
+def api_planilhas():
+    planilhas = []
+    for file in BASE_DIR.glob("*.xlsx"):
+        planilhas.append({
+            "nome": file.name,
+            "tamanho": file.stat().st_size,
+            "modificado": datetime.fromtimestamp(file.stat().st_mtime, TZ_BR).strftime("%d/%m/%Y %H:%M:%S")
+        })
+    return jsonify(planilhas)
+
 # ─────────────────────────────────────────────────────
 #  FRONTEND (HTML embutido)
 # ─────────────────────────────────────────────────────

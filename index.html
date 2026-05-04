@@ -783,6 +783,14 @@
       </div>
     </div>
 
+    <!-- ── DOWNLOADS ── -->
+    <div class="card" style="grid-column: 1 / -1;" id="painel-downloads">
+      <div class="card-title">📥 Planilhas Disponíveis</div>
+      <div style="display:flex; flex-wrap:wrap; gap:12px;" id="lista-planilhas">
+        <span style="color:var(--text3); font-size:0.85rem;">Verificando...</span>
+      </div>
+    </div>
+
     <!-- ── LOGS ── -->
     <div class="card" id="painel-logs">
       <div class="log-controls">
@@ -1031,6 +1039,34 @@
       }
     }
 
+    // ──────────────────────────────────────────────────────
+    //  DOWNLOADS
+    // ──────────────────────────────────────────────────────
+    async function carregarPlanilhas() {
+      try {
+        const r = await fetch('/api/planilhas');
+        const d = await r.json();
+        const lista = document.getElementById('lista-planilhas');
+        lista.innerHTML = '';
+        if (d.length === 0) {
+          lista.innerHTML = '<span style="color:var(--text3); font-size:0.85rem;">Nenhuma planilha encontrada. Execute a automação primeiro.</span>';
+          return;
+        }
+        d.forEach(p => {
+          const btn = document.createElement('a');
+          const filial = p.nome.replace('.xlsx', '');
+          btn.href = `/download/${filial}.xlsx`;
+          btn.className = 'btn btn-green';
+          btn.style.textDecoration = 'none';
+          btn.innerHTML = `⬇ Baixar ${p.nome}`;
+          btn.title = `Modificado em: ${p.modificado}`;
+          lista.appendChild(btn);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     // Allow Enter key on time input
     document.getElementById('input-hora').addEventListener('keydown', e => {
       if (e.key === 'Enter') adicionarHorario();
@@ -1044,9 +1080,12 @@
       await atualizarStatus();
       await buscarLogs();
 
+      await carregarPlanilhas();
+
       // Polling a cada 2s (status) e 1.5s (logs)
       setInterval(atualizarStatus, 2000);
       setInterval(buscarLogs, 1500);
+      setInterval(carregarPlanilhas, 5000);
     })();
   </script>
 </body>
