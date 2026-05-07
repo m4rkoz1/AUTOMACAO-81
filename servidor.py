@@ -210,8 +210,7 @@ def download_filial(filial):
         return send_file(
             arquivo,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            attachment_filename=f"{filial}.xlsx"
+            as_attachment=True
         )
     return f"Planilha {filial}.xlsx ainda não foi gerada", 404
 
@@ -334,8 +333,7 @@ def download_036(filename):
         return send_file(
             arquivo,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            attachment_filename=filename
+            as_attachment=True
         )
     return f"Arquivo {filename} ainda não foi gerado", 404
 
