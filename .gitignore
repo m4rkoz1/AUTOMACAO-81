@@ -3,9 +3,13 @@ __pycache__/
 *.xlsx
 *.csv
 downloads/
+downloads_036/
 screenshots/
+screenshots_036/
 logs.txt
 status.txt
+config_agendamentos.json
+config_agendamentos_036.json
 test_result.txt
 frames_dump.txt
 inspect_output.txt
