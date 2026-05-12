@@ -77,9 +77,10 @@ def carregar_config() -> list:
 
 
 def reconstruir_scheduler(agendamentos: list):
-    """Remove todos os jobs e recria com a lista atual."""
+    """Remove todos os jobs da 081 e recria com a lista atual."""
     for job in scheduler.get_jobs():
-        job.remove()
+        if not job.id.startswith("job036_"):
+            job.remove()
 
     for ag in agendamentos:
         hora, minuto = ag["hora"].split(":")
@@ -95,7 +96,7 @@ def reconstruir_scheduler(agendamentos: list):
 
 
 def atualizar_proximo():
-    jobs = scheduler.get_jobs()
+    jobs = [j for j in scheduler.get_jobs() if not j.id.startswith("job036_")]
     if jobs:
         proximos = [getattr(j, "next_run_time", None) for j in jobs]
         proximos = [p for p in proximos if p is not None]
