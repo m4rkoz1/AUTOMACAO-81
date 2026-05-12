@@ -10,6 +10,8 @@ import json
 import os
 import threading
 from collections import deque
+
+GLOBAL_LOCK = threading.Lock()
 from datetime import datetime, timezone, timedelta
 try:
     from zoneinfo import ZoneInfo
@@ -115,25 +117,27 @@ def rodar_automacao_job():
         adicionar_log("[AVISO] Automação já está rodando, pulando esta execução.")
         return
 
-    STATUS["rodando"] = True
-    STATUS["ultimo"]  = get_agora().strftime("%d/%m/%Y %H:%M:%S")
-    adicionar_log(f"[AGENDAMENTO] Iniciando automação — {STATUS['ultimo']}")
+    adicionar_log("[FILA] Aguardando liberação do sistema para iniciar 081...")
+    with GLOBAL_LOCK:
+        STATUS["rodando"] = True
+        STATUS["ultimo"]  = get_agora().strftime("%d/%m/%Y %H:%M:%S")
+        adicionar_log(f"[AGENDAMENTO] Iniciando automação — {STATUS['ultimo']}")
 
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        sucesso = loop.run_until_complete(automacao_ssw.executar_automacao())
-        loop.close()
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            sucesso = loop.run_until_complete(automacao_ssw.executar_automacao())
+            loop.close()
 
-        if sucesso:
-            adicionar_log("[SUCESSO] Automação concluída ✔")
-        else:
-            adicionar_log("[ERRO] Automação terminou com erro ✘")
-    except Exception as e:
-        adicionar_log(f"[ERRO CRÍTICO] {e}")
-    finally:
-        STATUS["rodando"] = False
-        atualizar_proximo()
+            if sucesso:
+                adicionar_log("[SUCESSO] Automação concluída ✔")
+            else:
+                adicionar_log("[ERRO] Automação terminou com erro ✘")
+        except Exception as e:
+            adicionar_log(f"[ERRO CRÍTICO] {e}")
+        finally:
+            STATUS["rodando"] = False
+            atualizar_proximo()
 
 
 # ─────────────────────────────────────────────────────
@@ -269,23 +273,26 @@ def rodar_automacao_036_job():
     if STATUS_036["rodando"]:
         adicionar_log_036("[AVISO] Automação 036 já está rodando, pulando.")
         return
-    STATUS_036["rodando"] = True
-    STATUS_036["ultimo"] = get_agora().strftime("%d/%m/%Y %H:%M:%S")
-    adicionar_log_036(f"[AGENDAMENTO] Iniciando automação 036 — {STATUS_036['ultimo']}")
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        sucesso = loop.run_until_complete(automacao_036.executar_automacao())
-        loop.close()
-        if sucesso:
-            adicionar_log_036("[SUCESSO] Automação 036 concluída ✔")
-        else:
-            adicionar_log_036("[ERRO] Automação 036 terminou com erro ✘")
-    except Exception as e:
-        adicionar_log_036(f"[ERRO CRÍTICO] {e}")
-    finally:
-        STATUS_036["rodando"] = False
-        atualizar_proximo_036()
+    
+    adicionar_log_036("[FILA] Aguardando liberação do sistema para iniciar 036...")
+    with GLOBAL_LOCK:
+        STATUS_036["rodando"] = True
+        STATUS_036["ultimo"] = get_agora().strftime("%d/%m/%Y %H:%M:%S")
+        adicionar_log_036(f"[AGENDAMENTO] Iniciando automação 036 — {STATUS_036['ultimo']}")
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            sucesso = loop.run_until_complete(automacao_036.executar_automacao())
+            loop.close()
+            if sucesso:
+                adicionar_log_036("[SUCESSO] Automação 036 concluída ✔")
+            else:
+                adicionar_log_036("[ERRO] Automação 036 terminou com erro ✘")
+        except Exception as e:
+            adicionar_log_036(f"[ERRO CRÍTICO] {e}")
+        finally:
+            STATUS_036["rodando"] = False
+            atualizar_proximo_036()
 
 @app.route("/036/api/status")
 def api_status_036():
