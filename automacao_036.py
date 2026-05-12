@@ -200,16 +200,18 @@ async def preencher_campos_relatorio(page):
     dt_ini = _data_inicio_mes()
     log(f"Preenchendo data inicial: {dt_ini}")
     campo_dt_ini = page.locator('input[name="t_dt_ini"]')
-    await campo_dt_ini.fill("")
-    await campo_dt_ini.type(dt_ini, delay=50)
+    # Força a limpeza do campo via JS para ignorar a máscara
+    await campo_dt_ini.evaluate("el => el.value = ''")
+    await campo_dt_ini.fill(dt_ini)
     log(f"✔ Data inicial = {dt_ini}")
 
     # Data final = hoje
     dt_fin = _data_hoje()
     log(f"Preenchendo data final: {dt_fin}")
     campo_dt_fin = page.locator('input[name="t_dt_fin"]')
-    await campo_dt_fin.fill("")
-    await campo_dt_fin.type(dt_fin, delay=50)
+    # Força a limpeza via JS
+    await campo_dt_fin.evaluate("el => el.value = ''")
+    await campo_dt_fin.fill(dt_fin)
     log(f"✔ Data final = {dt_fin}")
 
     await _screenshot(page, "03_campos_preenchidos")
