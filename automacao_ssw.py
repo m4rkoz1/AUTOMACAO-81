@@ -531,67 +531,90 @@ async def executar_automacao():
                 if old_file.exists():
                     old_file.unlink()
 
+            falhas = []
             for filial in FILIAIS:
-                log(f"\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                log(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 log(f" INICIANDO EXTRAÇÃO: FILIAL {filial}")
                 log(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                
+
                 page = await context.new_page()
                 page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
+                try:
+                    # Passo 1: Login
+                    await fazer_login(page)
 
-                # Passo 1: Login
-                await fazer_login(page)
+                    # Trocar filial se não for a padrão (RJO)
+                    if filial != "RJO":
+                        import time
+                        log(f"Mudando filial para {filial} via chamada POST TRO...")
+                        await page.fill('input[id="2"]', filial)
+                        await asyncio.sleep(0.3)
+                        dummy = str(int(time.time() * 1000))
 
-                # Trocar filial se não for a padrão (RJO)
-                if filial != "RJO":
-                    import time
-                    log(f"Mudando filial para {filial} via chamada POST TRO...")
-                    await page.fill('input[id="2"]', filial)
-                    await asyncio.sleep(0.3)
-                    dummy = str(int(time.time() * 1000))
-                    
-                    await page.evaluate(f"""
-                        () => {{
-                            return new Promise((resolve) => {{
-                                const xhr = new XMLHttpRequest();
-                                xhr.open('POST', '/bin/menu01', true);
-                                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                                xhr.onreadystatechange = function() {{
-                                    if (xhr.readyState === 4) resolve(xhr.status);
-                                }};
-                                xhr.send('act=TRO&f2={filial}&f3=52&menu01=1&dummy={dummy}');
-                            }});
-                        }}
-                    """)
-                    log(f"Sessão atualizada para filial {filial}.")
-                    await asyncio.sleep(2)
+                        await page.evaluate(f"""
+                            () => {{
+                                return new Promise((resolve) => {{
+                                    const xhr = new XMLHttpRequest();
+                                    xhr.open('POST', '/bin/menu01', true);
+                                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                                    xhr.onreadystatechange = function() {{
+                                        if (xhr.readyState === 4) resolve(xhr.status);
+                                    }};
+                                    xhr.send('act=TRO&f2={filial}&f3=52&menu01=1&dummy={dummy}');
+                                }});
+                            }}
+                        """)
+                        log(f"Sessão atualizada para filial {filial}.")
+                        await asyncio.sleep(2)
 
-                # Passo 2: Navegar
-                await navegar_para_relatorio(page)
+                    # Passo 2: Navegar
+                    await navegar_para_relatorio(page)
 
-                # Passo 3: Preencher Excel=S + clicar Sem roteirizar
-                log("=== PASSO 3: PREENCHENDO EXCEL=S ===")
-                await _preencher_campo_excel(page)
-                await _screenshot(page, f"03_excel_S_{filial}")
+                    # Passo 3: Preencher Excel=S + clicar Sem roteirizar
+                    log("=== PASSO 3: PREENCHENDO EXCEL=S ===")
+                    await _preencher_campo_excel(page)
+                    await _screenshot(page, f"03_excel_S_{filial}")
 
-                log("=== PASSO 3b: CLICANDO SEM ROTEIRIZAR ===")
-                arquivo_baixado = await _clicar_sem_roteirizar_e_baixar(page, context)
+                    log("=== PASSO 3b: CLICANDO SEM ROTEIRIZAR ===")
+                    arquivo_baixado = await _clicar_sem_roteirizar_e_baixar(page, context)
 
-                # Passo 4: Copiar para Planilha (Filial.xlsx)
-                planilha_path = copiar_para_planilha(filial, arquivo_baixado)
-                log(f"✔ Planilha {filial} pronta: {planilha_path}")
+                    if not arquivo_baixado:
+                        msg = f"Filial {filial}: não foi possível obter o download após 45s — prosseguindo para próxima filial."
+                        log(f"⚠ [AVISO] {msg}")
+                        falhas.append(filial)
+                        continue
 
-                await page.close()
+                    # Passo 4: Copiar para Planilha (Filial.xlsx)
+                    planilha_path = copiar_para_planilha(filial, arquivo_baixado)
+                    log(f"✔ Planilha {filial} pronta: {planilha_path}")
+
+                except Exception as e_filial:
+                    log(f"⚠ [AVISO] Filial {filial} falhou: {e_filial} — prosseguindo para próxima filial.")
+                    import traceback as _tb
+                    _tb.print_exc()
+                    if filial not in falhas:
+                        falhas.append(filial)
+                finally:
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
 
             await browser.close()
-            
+
         # Passo 5: Limpar Cache
         limpar_cache()
 
+        if falhas:
+            log(f"⚠ [AVISO] Automação concluída com pendências — sem download: {', '.join(falhas)}")
+            log("⚠ [AVISO] Verifique a tela do SSW para as filiais listadas. As demais prosseguiram normalmente.")
         log("╔══════════════════════════════════════════════╗")
         log("║  ✔ AUTOMAÇÃO CONCLUÍDA COM SUCESSO!          ║")
-        log("║  Todas as planilhas (RJO, FSP, TRA, BAR, ARA)║")
-        log("║  foram processadas e salvas.                 ║")
+        if falhas:
+            log(f"║  Pendentes (sem download): {', '.join(falhas)}".ljust(46) + "║")
+        else:
+            log("║  Todas as planilhas (RJO, FSP, TRA, BAR, ARA)║")
+            log("║  foram processadas e salvas.                 ║")
         log(f"║  Fim: {get_agora().strftime('%d/%m/%Y %H:%M:%S')}                       ║")
         log("╚══════════════════════════════════════════════╝")
         return True
@@ -661,6 +684,10 @@ async def _clicar_sem_roteirizar_e_baixar(page, context):
         destino = str(pasta / f"ssw_ext_{unico_str}{extensao}")
         await download.save_as(destino)
         log(f"✔ Download capturado: {destino}")
+        try:
+            page.off("download", handle_download)
+        except Exception:
+            pass
         return destino
     except asyncio.TimeoutError:
         log("⚠ Timeout no evento de download — procurando na pasta...")
@@ -675,9 +702,18 @@ async def _clicar_sem_roteirizar_e_baixar(page, context):
         if todos_arqs:
             mais_recente = max(todos_arqs, key=os.path.getmtime)
             log(f"✔ Arquivo encontrado na pasta: {mais_recente}")
+            try:
+                page.off("download", handle_download)
+            except Exception:
+                pass
             return str(mais_recente)
 
-    raise Exception("Arquivo não encontrado após 45s. Verifique a tela do SSW.")
+    log("⚠ [AVISO] Arquivo não encontrado após 45s. Verifique a tela do SSW. Prosseguindo para próxima filial.")
+    try:
+        page.off("download", handle_download)
+    except Exception:
+        pass
+    return None
 
 
 # ─────────────────────────────────────────────────────
