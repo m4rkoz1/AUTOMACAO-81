@@ -32,7 +32,7 @@ CONFIG = {
     "usuario":       "12345678",
     "senha":         "123",
     "url_login":     "https://sistema.ssw.inf.br/bin/ssw0422",
-    "url_relatorio": "https://sistema.ssw.inf.br/bin/ssw0036",
+    "url_relatorio": "https://sistema.ssw.inf.br/bin/ssw0146",
     "filial":        "MTZ",
     "relatorio":     "036",
     "pasta_download":    str(BASE_DIR / "downloads_036"),
@@ -321,17 +321,50 @@ async def clicar_gerar_e_baixar(page, context):
 
     page.on("download", handle_download)
 
-    # Clica no botão ► (btn_env_periodo)
-    log("Clicando no botão ► (btn_env_periodo)...")
+    # ── Dispara o relatório via onclick do botão ► (btn_env_periodo) ──
+    # O onclick do botão contém: ajaxEnvia('REL2', 1)
+    # Chamamos a função JS diretamente para evitar problemas com
+    # elemento interceptado (errorpanel), clique visível etc.
+    log("Disparando gerar relatório via ajaxEnvia('REL2', 1)...")
     try:
-        await page.click('a[id="btn_env_periodo"]')
-        log("✔ Clicou no botão com sucesso!")
-    except Exception as e:
-        log(f"⚠ Erro ao clicar no botão: {e}")
-        # Fallback: executa via JavaScript
-        log("Tentando via JavaScript...")
-        await page.evaluate("() => { const btn = document.getElementById('btn_env_periodo'); if(btn) btn.click(); }")
-        log("✔ Clicou via JavaScript")
+        await page.evaluate("""
+            () => {
+                try {
+                    if (typeof ajaxEnvia === 'function') {
+                        ajaxEnvia('REL2', 1);
+                        return 'ajaxEnvia';
+                    }
+                } catch (e) {
+                    // ignora e cai no fallback
+                }
+                // Fallback 1: chama onclick do botão via objeto
+                try {
+                    const btn = document.getElementById('btn_env_periodo');
+                    if (btn && typeof btn.onclick === 'function') {
+                        btn.onclick.call(btn);
+                        return 'btn.onclick';
+                    }
+                } catch (e2) {
+                    // ignora e cai no clique
+                }
+                // Fallback 2: clique nativo via JavaScript
+                try {
+                    const btn2 = document.getElementById('btn_env_periodo');
+                    if (btn2) { btn2.click(); return 'btn.click()'; }
+                } catch (e3) {
+                    // ignora
+                }
+                return 'nenhum';
+            }
+        """)
+        log("✔ ajaxEnvia('REL2', 1) disparado (ou fallback aplicado)")
+    except Exception as e_eval:
+        log(f"⚠ evaluate disparo de envio falhou ({e_eval}) — tentando clique normal...")
+        try:
+            await page.click('a[id="btn_env_periodo"]', force=True, timeout=10_000)
+            log("✔ Clique no ► (force=True)")
+        except Exception as e:
+            log(f"⚠ Erro no clique force: {e}")
 
     await _screenshot(page, "04_pos_clique_gerar")
 
