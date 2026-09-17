@@ -32,6 +32,7 @@ CONFIG = {
     "usuario":       "12345678",
     "senha":         "123",
     "url_login":     "https://sistema.ssw.inf.br/bin/ssw0422",
+    "url_relatorio": "https://sistema.ssw.inf.br/bin/ssw0036",
     "filial":        "MTZ",
     "relatorio":     "036",
     "pasta_download":    str(BASE_DIR / "downloads_036"),
@@ -124,7 +125,7 @@ async def fazer_login(page):
 
 
 # ─────────────────────────────────────────────────────
-#  PASSO 2: SELECIONAR FILIAL MTZ E ABRIR RELATÓRIO 036 (POPUP)
+#  PASSO 2: SELECIONAR FILIAL MTZ E ABRIR RELATÓRIO 036
 # ─────────────────────────────────────────────────────
 async def selecionar_filial_e_relatorio(page, context):
     import time as _time
@@ -133,8 +134,11 @@ async def selecionar_filial_e_relatorio(page, context):
 
     # Troca a filial para MTZ via POST (mesma tecnica da automacao 081)
     log(f"Trocando filial para {CONFIG['filial']} via POST...")
-    await page.fill('input[id="2"]', CONFIG["filial"])
-    await asyncio.sleep(0.3)
+    try:
+        await page.fill('input[id="2"]', CONFIG["filial"], timeout=5_000)
+    except Exception:
+        log(f"⚠ Nao achou input[id=2] no menu (ignorando fill, usando so POST)...")
+    await asyncio.sleep(0.2)
     dummy = str(int(_time.time() * 1000))
 
     await page.evaluate(f"""
@@ -155,33 +159,97 @@ async def selecionar_filial_e_relatorio(page, context):
 
     await _screenshot(page, "02a_filial_MTZ")
 
+    # =========================================================
+    # ESTRATEGIA 1 (PREFERENCIAL): GOTO DIRETO NA URL DO RELATORIO
+    # Evita totalmente o problema do <div id="errorpanel">
+    # interceptando o clique no campo Opção (f3).
+    # =========================================================
+    url_rel = CONFIG["url_relatorio"]
+    log(f"[Estratégia 1] Acessando diretamente: {url_rel}")
+
+    try:
+        await page.goto(url_rel, wait_until="domcontentloaded", timeout=30_000)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=15_000)
+        except PlaywrightTimeout:
+            pass
+
+        await _screenshot(page, "02b_goto_direto")
+
+        # Verifica se realmente caiu na tela do relatório 036
+        # (presença de campos característicos como t_excel)
+        tem_t_excel = await page.evaluate("() => !!document.querySelector('input[name=\"t_excel\"]')")
+        tem_btn_env = await page.evaluate("() => !!document.getElementById('btn_env_periodo')")
+        if tem_t_excel or tem_btn_env:
+            log(f"✔ Entrou direto na tela 036 via URL (t_excel={tem_t_excel}, btn_env_periodo={tem_btn_env}) — skipou menu + popup!")
+            return page
+
+        log(f"⚠ Goto direto carregou mas não achou campos da tela 036 (URL: {page.url}). Caindo na estratégia 2...")
+    except Exception as e_goto:
+        log(f"⚠ Goto direto falhou ({e_goto}). Voltando ao menu e usando estratégia 2...")
+        # Garante que voltamos para o menu caso a URL dê erro
+        try:
+            await page.goto("https://sistema.ssw.inf.br/bin/menu01", wait_until="domcontentloaded", timeout=20_000)
+            await asyncio.sleep(1)
+        except Exception:
+            pass
+
+    # =========================================================
+    # ESTRATÉGIA 2 (FALLBACK): MENU + CAMPO f3 + POPUP
+    # (usado só se a URL direta não funcionar)
+    # =========================================================
+    log("[Estratégia 2] Usando menu Opção (f3) + popup...")
+    await _screenshot(page, "02c_antes_menu_f3")
+
     # Digita 036 no campo Opcao (f3) e captura o popup
     log("Digitando 036 no campo Opcao para abrir popup...")
     campo_opcao = page.locator('input[name="f3"]')
     try:
-        await campo_opcao.click(force=True, timeout=10_000)
+        await campo_opcao.click(force=True, timeout=8_000)
         log("✔ Clicou no campo Opcao (force=True)")
     except Exception as e_click:
-        log(f"⚠ clique normal falhou ({e_click}) — forçando via JavaScript...")
-        await campo_opcao.evaluate("el => { try { el.focus(); el.click(); } catch(e) {} el.value = ''; }")
+        log(f"⚠ clique falhou ({e_click}) — forçando via JavaScript...")
+        try:
+            await campo_opcao.evaluate("el => { try { el.focus(); el.click(); } catch(e) {} el.value = ''; }")
+        except Exception as e_js:
+            log(f"⚠ evaluate do clique também falhou: {e_js}")
+
     await asyncio.sleep(0.3)
 
     # Escuta pelo popup ANTES de digitar
-    async with context.expect_page(timeout=30_000) as popup_info:
+    popup = None
+    try:
+        async with context.expect_page(timeout=25_000) as popup_info:
+            try:
+                await campo_opcao.fill(CONFIG["relatorio"], timeout=8_000)
+            except Exception:
+                log(f"⚠ fill falhou — escrevendo {CONFIG['relatorio']} via JavaScript...")
+                try:
+                    await campo_opcao.evaluate(f"el => {{ el.value = '{CONFIG['relatorio']}'; try {{ SetEnd(el); }} catch(e) {{}} }}")
+                except Exception as e_val:
+                    log(f"⚠ evaluate do value falhou: {e_val}")
+            await asyncio.sleep(0.3)
+            # Dispara o onchange que abre o popup
+            try:
+                await campo_opcao.evaluate("el => { el.dispatchEvent(new Event('change', {bubbles:true})); try { doOption && doOption(); } catch(e) {} }")
+            except Exception as e_do:
+                log(f"⚠ onchange via evaluate falhou: {e_do}")
+            log("Aguardando popup abrir...")
+        popup = await popup_info.value
+    except Exception as e_popup:
+        # Ultimo recurso: tenta abrir a URL direto de novo como terceira tentativa
+        log(f"⚠ Nenhum popup detectado ({e_popup}). Ultima tentativa: evaluate para abrir window.open ou forcar goto na mesmas URL...")
         try:
-            await campo_opcao.fill("036", timeout=10_000)
-        except Exception:
-            log("⚠ fill falhou — escrevendo 036 via JavaScript...")
-            await campo_opcao.evaluate("el => { el.value = '036'; try { SetEnd(el); } catch(e) {} }")
-        await asyncio.sleep(0.3)
-        # Dispara o onchange que abre o popup
-        try:
-            await campo_opcao.evaluate("el => { el.dispatchEvent(new Event('change', {bubbles:true})); try { doOption && doOption(); } catch(e) {} }")
-        except Exception as e_do:
-            log(f"⚠ onchange via evaluate falhou: {e_do}")
-        log("Aguardando popup abrir...")
+            await page.goto(url_rel, wait_until="domcontentloaded", timeout=20_000)
+            await _screenshot(page, "02d_ultima_tentativa_goto")
+            tem_t_excel = await page.evaluate("() => !!document.querySelector('input[name=\"t_excel\"]')")
+            if tem_t_excel:
+                log("✔ Terceira tentativa via goto funcionou.")
+                return page
+        except Exception as e_final:
+            log(f"⚠ Goto final também falhou: {e_final}")
+        raise Exception(f"Não foi possível abrir a tela {CONFIG['relatorio']} por nenhum método. Verifique filial={CONFIG['filial']} e URL={url_rel}")
 
-    popup = await popup_info.value
     await popup.wait_for_load_state("domcontentloaded", timeout=30_000)
     try:
         await popup.wait_for_load_state("networkidle", timeout=15_000)
@@ -191,7 +259,7 @@ async def selecionar_filial_e_relatorio(page, context):
     # Aceita dialogos no popup tambem
     popup.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
 
-    await _screenshot(popup, "02b_tela_relatorio_popup")
+    await _screenshot(popup, "02e_tela_relatorio_popup")
     log(f"Popup do relatorio 036 aberto - URL: {popup.url}")
     return popup
 
@@ -432,7 +500,7 @@ async def executar_automacao():
             _tb.print_exc()
         finally:
             try:
-                if popup is not None:
+                if popup is not None and not (popup is page):
                     await popup.close()
             except Exception:
                 pass
