@@ -158,15 +158,27 @@ async def selecionar_filial_e_relatorio(page, context):
     # Digita 036 no campo Opcao (f3) e captura o popup
     log("Digitando 036 no campo Opcao para abrir popup...")
     campo_opcao = page.locator('input[name="f3"]')
-    await campo_opcao.click()
+    try:
+        await campo_opcao.click(force=True, timeout=10_000)
+        log("✔ Clicou no campo Opcao (force=True)")
+    except Exception as e_click:
+        log(f"⚠ clique normal falhou ({e_click}) — forçando via JavaScript...")
+        await campo_opcao.evaluate("el => { try { el.focus(); el.click(); } catch(e) {} el.value = ''; }")
     await asyncio.sleep(0.3)
 
     # Escuta pelo popup ANTES de digitar
     async with context.expect_page(timeout=30_000) as popup_info:
-        await campo_opcao.fill("036")
+        try:
+            await campo_opcao.fill("036", timeout=10_000)
+        except Exception:
+            log("⚠ fill falhou — escrevendo 036 via JavaScript...")
+            await campo_opcao.evaluate("el => { el.value = '036'; try { SetEnd(el); } catch(e) {} }")
         await asyncio.sleep(0.3)
         # Dispara o onchange que abre o popup
-        await campo_opcao.evaluate("el => { el.dispatchEvent(new Event('change')); }")
+        try:
+            await campo_opcao.evaluate("el => { el.dispatchEvent(new Event('change', {bubbles:true})); try { doOption && doOption(); } catch(e) {} }")
+        except Exception as e_do:
+            log(f"⚠ onchange via evaluate falhou: {e_do}")
         log("Aguardando popup abrir...")
 
     popup = await popup_info.value
@@ -264,6 +276,10 @@ async def clicar_gerar_e_baixar(page, context):
         destino = str(pasta / f"relatorio_036_temp{extensao}")
         await download.save_as(destino)
         log(f"✔ Download capturado: {destino}")
+        try:
+            page.off("download", handle_download)
+        except Exception:
+            pass
         return destino
     except asyncio.TimeoutError:
         log("⚠ Timeout no evento de download — procurando na pasta...")
@@ -278,9 +294,18 @@ async def clicar_gerar_e_baixar(page, context):
         if todos_arqs:
             mais_recente = max(todos_arqs, key=os.path.getmtime)
             log(f"✔ Arquivo encontrado na pasta: {mais_recente}")
+            try:
+                page.off("download", handle_download)
+            except Exception:
+                pass
             return str(mais_recente)
 
-    raise Exception("Arquivo não encontrado após 60s. Verifique a tela do SSW.")
+    log("⚠ [AVISO] Arquivo não encontrado após 60s. Verifique a tela do SSW. Automação 036 finalizada sem gerar o arquivo final.")
+    try:
+        page.off("download", handle_download)
+    except Exception:
+        pass
+    return None
 
 
 # ─────────────────────────────────────────────────────
@@ -360,23 +385,27 @@ async def executar_automacao():
     Path(CONFIG["pasta_download"]).mkdir(exist_ok=True)
     Path(CONFIG["pasta_screenshots"]).mkdir(exist_ok=True)
 
-    try:
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(
-                headless=True,
-                downloads_path=CONFIG["pasta_download"],
-                args=["--no-sandbox", "--disable-dev-shm-usage"]
-            )
+    arquivo_baixado = None
+    passo_falhou = ""
 
-            context = await browser.new_context(
-                accept_downloads=True,
-                viewport={"width": 1400, "height": 900},
-                ignore_https_errors=True,
-            )
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(
+            headless=True,
+            downloads_path=CONFIG["pasta_download"],
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
 
-            page = await context.new_page()
-            page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
+        context = await browser.new_context(
+            accept_downloads=True,
+            viewport={"width": 1400, "height": 900},
+            ignore_https_errors=True,
+        )
 
+        page = await context.new_page()
+        page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
+        popup = None
+
+        try:
             # Passo 1: Login
             await fazer_login(page)
 
@@ -389,27 +418,52 @@ async def executar_automacao():
             # Passo 4: Clicar ► e baixar (no POPUP)
             arquivo_baixado = await clicar_gerar_e_baixar(popup, context)
 
-            # Passo 5: Salvar arquivo final
-            salvar_arquivo_final(arquivo_baixado)
+            # Passo 5: Salvar arquivo final (apenas se houve download)
+            if arquivo_baixado:
+                salvar_arquivo_final(arquivo_baixado)
+            else:
+                passo_falhou = "Passo 4/5 (download)"
+                log("⚠ [AVISO] Pulando Passo 5 (salvar arquivo final) — não houve download.")
 
-            await popup.close()
-            await page.close()
-            await browser.close()
+        except Exception as e_passo:
+            passo_falhou = passo_falhou or f"erro durante os passos ({e_passo})"
+            log(f"⚠ [AVISO] {passo_falhou} — prosseguindo para limpeza e fechamento.")
+            import traceback as _tb
+            _tb.print_exc()
+        finally:
+            try:
+                if popup is not None:
+                    await popup.close()
+            except Exception:
+                pass
+            try:
+                await page.close()
+            except Exception:
+                pass
+            try:
+                await browser.close()
+            except Exception:
+                pass
 
-        # Passo 6: Limpar cache
+    # Passo 6: Limpar cache
+    try:
         limpar_cache()
+    except Exception as e_limpeza:
+        log(f"⚠ Erro na limpeza de cache (ignorado): {e_limpeza}")
 
-        log("╔══════════════════════════════════════════════╗")
+    log("╔══════════════════════════════════════════════╗")
+    if passo_falhou or not arquivo_baixado:
+        log("║  ⚠ AUTOMAÇÃO 036 CONCLUÍDA COM PENDÊNCIA     ║")
+        if passo_falhou:
+            log(f"║  Motivo: {passo_falhou[:34]}".ljust(46) + "║")
+        else:
+            log("║  Download não obtido após timeout.           ║")
+        log("║  Verifique a tela do SSW.                    ║")
+    else:
         log("║  ✔ AUTOMAÇÃO 036 CONCLUÍDA COM SUCESSO!      ║")
-        log(f"║  Fim: {_get_agora().strftime('%d/%m/%Y %H:%M:%S')}                       ║")
-        log("╚══════════════════════════════════════════════╝")
-        return True
-
-    except Exception as e:
-        log(f"✘ ERRO NA AUTOMAÇÃO 036: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    log(f"║  Fim: {_get_agora().strftime('%d/%m/%Y %H:%M:%S')}                       ║")
+    log("╚══════════════════════════════════════════════╝")
+    return True
 
 
 # ─────────────────────────────────────────────────────
