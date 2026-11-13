@@ -15,7 +15,7 @@ async def run():
             page.on("dialog", lambda d: asyncio.create_task(d.accept()))
 
             # Login
-            await page.goto("https://sistema.ssw.inf.br/bin/ssw0422", wait_until="domcontentloaded")
+            await page.goto("https://tms.ssw.inf.br/bin/ssw0422", wait_until="domcontentloaded")
             await page.wait_for_load_state("networkidle", timeout=15000)
             await page.fill('input[name="f1"]', "GIA")
             await page.fill('input[name="f2"]', "11571959700")
@@ -47,7 +47,7 @@ async def run():
                 print(f"[{filial}] Sessão atualizada (status HTTP {status_code}).")
                 await asyncio.sleep(2)
 
-            await page.goto("https://sistema.ssw.inf.br/bin/ssw0052", wait_until="domcontentloaded")
+            await page.goto("https://tms.ssw.inf.br/bin/ssw0052", wait_until="domcontentloaded")
             try:
                 await page.wait_for_load_state("networkidle", timeout=15000)
             except Exception:

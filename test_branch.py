@@ -17,7 +17,7 @@ async def run():
         page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
         
         print("Logging in...")
-        await page.goto("https://sistema.ssw.inf.br/bin/ssw0422")
+        await page.goto("https://tms.ssw.inf.br/bin/ssw0422")
         await page.fill('input[name="f1"]', "GIA")
         await page.fill('input[name="f2"]', "11571959700")
         await page.fill('input[name="f3"]', "12345678")

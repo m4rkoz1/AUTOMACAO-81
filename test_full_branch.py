@@ -14,7 +14,7 @@ from playwright.async_api import async_playwright
 REMOTE_DIR = "/opt/automacao"
 
 async def login(page):
-    await page.goto("https://sistema.ssw.inf.br/bin/ssw0422")
+    await page.goto("https://tms.ssw.inf.br/bin/ssw0422")
     await page.fill('input[name="f1"]', "GIA")
     await page.fill('input[name="f2"]', "11571959700")
     await page.fill('input[name="f3"]', "12345678")
@@ -55,7 +55,7 @@ async def extract_for_branch(context, filial):
         print(f"[{filial}] After change - branch field value: {branch_val2}, URL: {page.url}")
     
     # Navigate to the report page
-    await page.goto("https://sistema.ssw.inf.br/bin/ssw0052")
+    await page.goto("https://tms.ssw.inf.br/bin/ssw0052")
     await asyncio.sleep(3)
     
     # Check: what branch does the report page think we're on?

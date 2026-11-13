@@ -31,8 +31,8 @@ CONFIG = {
     "cpf":           "11571959700",
     "usuario":       "12345678",
     "senha":         "123",
-    "url_login":     "https://sistema.ssw.inf.br/bin/ssw0422",
-    "url_relatorio": "https://sistema.ssw.inf.br/bin/ssw0146",
+    "url_login":     "https://tms.ssw.inf.br/bin/ssw0422",
+    "url_relatorio": "https://tms.ssw.inf.br/bin/ssw0146",
     "filial":        "MTZ",
     "relatorio":     "036",
     "pasta_download":    str(BASE_DIR / "downloads_036"),
@@ -189,7 +189,7 @@ async def selecionar_filial_e_relatorio(page, context):
         log(f"⚠ Goto direto falhou ({e_goto}). Voltando ao menu e usando estratégia 2...")
         # Garante que voltamos para o menu caso a URL dê erro
         try:
-            await page.goto("https://sistema.ssw.inf.br/bin/menu01", wait_until="domcontentloaded", timeout=20_000)
+            await page.goto("https://tms.ssw.inf.br/bin/menu01", wait_until="domcontentloaded", timeout=20_000)
             await asyncio.sleep(1)
         except Exception:
             pass

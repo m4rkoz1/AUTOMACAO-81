@@ -15,7 +15,7 @@ async def run():
         context = await browser.new_context()
         page = await context.new_page()
         
-        await page.goto("https://sistema.ssw.inf.br/bin/ssw0422")
+        await page.goto("https://tms.ssw.inf.br/bin/ssw0422")
         await page.fill('input[name="f1"]', "GIA")
         await page.fill('input[name="f2"]', "11571959700")
         await page.fill('input[name="f3"]', "12345678")
@@ -24,7 +24,7 @@ async def run():
         await asyncio.sleep(5)
         
         # Go to ssw0052 and dump inputs to see if there is a branch field
-        await page.goto("https://sistema.ssw.inf.br/bin/ssw0052")
+        await page.goto("https://tms.ssw.inf.br/bin/ssw0052")
         await asyncio.sleep(3)
         html = await page.content()
         with open("/opt/automacao/ssw0052.html", "w", encoding="utf-8") as f:
