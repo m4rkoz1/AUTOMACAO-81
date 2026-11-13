@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y tzdata && \
     dpkg-reconfigure -f noninteractive tzdata
 
 # Instalar dependências de sistema necessárias para o Playwright
-RUN apt-get update && apt-get install -y curl xvfb
+RUN apt-get update && apt-get install -y curl xvfb libatomic1 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
