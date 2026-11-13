@@ -67,8 +67,14 @@ async def fazer_login(page):
     log("=== PASSO 1: LOGIN ===")
     log(f"Abrindo: {CONFIG['url_login']}")
 
-    await page.goto(CONFIG["url_login"], wait_until="domcontentloaded")
-    await page.wait_for_load_state("networkidle", timeout=CONFIG["timeout_ms"])
+    resp = await page.goto(CONFIG["url_login"], wait_until="domcontentloaded")
+    if resp and resp.status >= 400:
+        log(f"⚠ Resposta HTTP de login: {resp.status}")
+
+    try:
+        await page.wait_for_load_state("networkidle", timeout=15_000)
+    except PlaywrightTimeout:
+        pass
 
     log("Preenchendo credenciais...")
     await page.fill('input[name="f1"]', CONFIG["dominio"])
@@ -92,7 +98,13 @@ async def fazer_login(page):
     url_atual = page.url
     if "ssw0422" in url_atual:
         await _screenshot(page, "ERRO_login")
-        raise Exception("Login falhou! Verifique credenciais. Screenshot: screenshots/ERRO_login.png")
+        err_msg = ""
+        try:
+            err_msg = await page.evaluate("() => document.getElementById('errormsg')?.innerText.trim() || ''")
+        except Exception:
+            pass
+        detalhe = f" Detalhes: {err_msg}" if err_msg else ""
+        raise Exception(f"Login falhou! Verifique credenciais.{detalhe} Screenshot: screenshots/ERRO_login.png")
 
     log(f"✔ Login OK → URL: {url_atual}")
     await _screenshot(page, "01_pos_login")
@@ -515,13 +527,19 @@ async def executar_automacao():
             browser = await pw.chromium.launch(
                 headless=True,          # True = sem janela (modo servidor)
                 downloads_path=CONFIG["pasta_download"],
-                args=["--no-sandbox", "--disable-dev-shm-usage"]
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",
+                ]
             )
 
             context = await browser.new_context(
                 accept_downloads=True,
                 viewport={"width": 1400, "height": 900},
                 ignore_https_errors=True,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                locale="pt-BR",
             )
             FILIAIS = ["RJO", "FSP", "TRA", "BAR", "ARA"]
 
