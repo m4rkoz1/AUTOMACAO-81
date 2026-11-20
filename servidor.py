@@ -30,6 +30,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 import automacao_ssw
 import automacao_036
+import upload_filebrowser
 
 # ─────────────────────────────────────────────────────
 #  ESTADO GLOBAL — 081
@@ -131,6 +132,13 @@ def rodar_automacao_job():
 
             if sucesso:
                 adicionar_log("[SUCESSO] Automação concluída ✔")
+                try:
+                    upload_filebrowser.upload_para_filebrowser(
+                        ["RJO.xlsx", "FSP.xlsx", "BAR.xlsx", "ARA.xlsx", "TRA.xlsx"],
+                        log_fn=adicionar_log
+                    )
+                except Exception as e_up:
+                    adicionar_log(f"[FILEBROWSER] ⚠ Erro no upload: {e_up}")
             else:
                 adicionar_log("[ERRO] Automação terminou com erro ✘")
         except Exception as e:
@@ -286,6 +294,13 @@ def rodar_automacao_036_job():
             loop.close()
             if sucesso:
                 adicionar_log_036("[SUCESSO] Automação 036 concluída ✔")
+                try:
+                    upload_filebrowser.upload_para_filebrowser(
+                        ["relatorio_036.xlsx"],
+                        log_fn=adicionar_log_036
+                    )
+                except Exception as e_up:
+                    adicionar_log_036(f"[FILEBROWSER] ⚠ Erro no upload: {e_up}")
             else:
                 adicionar_log_036("[ERRO] Automação 036 terminou com erro ✘")
         except Exception as e:
@@ -359,6 +374,27 @@ def index_036():
     with open(BASE_DIR / "index_036.html", encoding="utf-8") as f:
         return f.read()
 
+@app.route("/admin")
+def index_admin():
+    with open(BASE_DIR / "index_admin.html", encoding="utf-8") as f:
+        return f.read()
+
+@app.route("/api/filebrowser/config", methods=["GET", "POST"])
+def api_filebrowser_config():
+    if request.method == "POST":
+        cfg = request.get_json() or {}
+        upload_filebrowser.salvar_config(cfg)
+        return jsonify({"ok": True})
+    return jsonify(upload_filebrowser.carregar_config())
+
+@app.route("/api/filebrowser/testar", methods=["POST"])
+def api_filebrowser_testar():
+    logs = []
+    def coletar_log(msg):
+        logs.append(msg)
+    ok = upload_filebrowser.upload_para_filebrowser(log_fn=coletar_log)
+    return jsonify({"ok": ok, "logs": logs})
+
 @app.route("/")
 def index():
     return '''
@@ -370,7 +406,7 @@ def index():
   <title>Automação SSW — Painel</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#0d1117; --bg2:#161b22; --bg3:#1c2330; --border:#30363d; --blue:#2f81f7; --purple:#a371f7; --text:#e6edf3; --text2:#8b949e; --text3:#484f58; }
+    :root { --bg:#0d1117; --bg2:#161b22; --bg3:#1c2330; --border:#30363d; --blue:#2f81f7; --purple:#a371f7; --green:#2ea043; --text:#e6edf3; --text2:#8b949e; --text3:#484f58; }
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:"Inter",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
     .nav-bar { background:linear-gradient(135deg,#0d1117,#161b22); border-bottom:1px solid var(--border); padding:0 32px; height:64px; display:flex; align-items:center; gap:24px; position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
@@ -381,9 +417,11 @@ def index():
     .tab-btn:hover { background:var(--bg3); color:var(--text); }
     .tab-btn.active-blue { background:rgba(47,129,247,.15); border-color:var(--blue); color:var(--blue); }
     .tab-btn.active-purple { background:rgba(163,113,247,.15); border-color:var(--purple); color:var(--purple); }
+    .tab-btn.active-green { background:rgba(46,160,67,.15); border-color:var(--green); color:#3fb950; }
     .tab-dot { width:8px; height:8px; border-radius:50%; }
     .tab-dot.blue { background:var(--blue); }
     .tab-dot.purple { background:var(--purple); }
+    .tab-dot.green { background:var(--green); }
     iframe { width:100%; height:calc(100vh - 64px); border:none; }
   </style>
 </head>
@@ -393,6 +431,7 @@ def index():
     <div class="tab-buttons">
       <button class="tab-btn active-blue" id="tab-081" onclick="trocarAba(\'/081\', this, \'blue\')"><div class="tab-dot blue"></div> 081 CTRCs</button>
       <button class="tab-btn" id="tab-036" onclick="trocarAba(\'/036\', this, \'purple\')"><div class="tab-dot purple"></div> 036 Relatório</button>
+      <button class="tab-btn" id="tab-admin" onclick="trocarAba(\'/admin\', this, \'green\')"><div class="tab-dot green"></div> ⚙ Filebrowser (VPS)</button>
     </div>
   </div>
   <iframe id="frame" src="/081"></iframe>

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações Filebrowser / VPS — Automação SSW</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --green: #2ea043;
+      --green-glow: rgba(46, 160, 67, 0.2);
+      --blue: #2f81f7;
+      --text: #e6edf3;
+      --text2: #8b949e;
+      --text3: #484f58;
+      --danger: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 32px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 880px;
+      margin: 0 auto;
+    }
+    .header {
+      margin-bottom: 28px;
+    }
+    .header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header p {
+      color: var(--text2);
+      font-size: 0.9rem;
+      margin-top: 6px;
+    }
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text2);
+    }
+    .input-wrapper {
+      position: relative;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    input[type="text"]:focus, input[type="password"]:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px var(--green-glow);
+    }
+    .toggle-pass {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--green);
+      cursor: pointer;
+    }
+    .toggle-row span {
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    button.btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-save {
+      background: var(--green);
+      color: white;
+    }
+    .btn-save:hover {
+      background: #238636;
+    }
+    .btn-test {
+      background: var(--bg3);
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn-test:hover {
+      background: #30363d;
+      border-color: var(--text2);
+    }
+    .log-box {
+      background: #05070a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      max-height: 220px;
+      overflow-y: auto;
+      color: #7ee787;
+      white-space: pre-wrap;
+    }
+    .alert-banner {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .alert-success { background: rgba(46,160,67,0.15); border: 1px solid var(--green); color: #7ee787; }
+    .alert-danger { background: rgba(248,81,73,0.15); border: 1px solid var(--danger); color: #ff7b72; }
+    .help-box {
+      font-size: 0.85rem;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+    .help-box code {
+      background: var(--bg3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--blue);
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚙ Configuração de Sincronização com VPS (Filebrowser)</h1>
+      <p>Gerencie as credenciais da VPS para envio automático das planilhas após cada execução do SSW.</p>
+    </div>
+
+    <div id="alertBanner" class="alert-banner"></div>
+
+    <div class="card">
+      <div class="card-title">🔐 Acesso ao Filebrowser</div>
+      
+      <div class="form-group">
+        <label class="toggle-row">
+          <input type="checkbox" id="chkHabilitado">
+          <span>Ativar envio automático de planilhas para a VPS ao concluir a automação</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label for="txtBaseUrl">URL do Filebrowser na VPS</label>
+        <input type="text" id="txtBaseUrl" placeholder="https://1-filebrowser1.wvm3zj.easypanel.host">
+      </div>
+
+      <div class="form-group">
+        <label for="txtPasta">Pasta Destino no Filebrowser</label>
+        <input type="text" id="txtPasta" placeholder="home/opc/ti">
+      </div>
+
+      <div class="form-group">
+        <label for="txtUsuario">Usuário</label>
+        <input type="text" id="txtUsuario" placeholder="Digite seu usuário no Filebrowser">
+      </div>
+
+      <div class="form-group">
+        <label for="txtSenha">Senha</label>
+        <div class="input-wrapper">
+          <input type="password" id="txtSenha" placeholder="Digite sua senha no Filebrowser">
+          <button type="button" class="toggle-pass" onclick="toggleSenha()">👁</button>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-save" onclick="salvarConfig()">💾 Salvar Configurações</button>
+        <button class="btn btn-test" id="btnTestar" onclick="testarSincronizacao()">🚀 Testar e Sincronizar Agora</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Log de Sincronização</div>
+      <div id="logConsole" class="log-box">Aguardando comando ou execução...</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💡 Como conectar ao Power BI</div>
+      <div class="help-box">
+        1. Abra o Filebrowser no seu navegador: <code>https://1-filebrowser1.wvm3zj.easypanel.host</code>.<br>
+        2. Navegue até a pasta <code>home/opc/ti</code>.<br>
+        3. Passe o mouse sobre a planilha desejada (ex: <code>RJO.xlsx</code>) e clique no ícone de <b>Compartilhar (Share)</b>.<br>
+        4. Desmarque o prazo de expiração (para o link ser permanente) e copie o <b>Link de Download Direto</b>.<br>
+        5. No Power BI Service / Desktop, selecione Obter Dados &gt; <b>Da Web</b> e cole o link copiado. Toda vez que a automação rodar aqui no Proxmox, o arquivo é substituído na VPS e o Power BI atualiza automaticamente!
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleSenha() {
+      const inp = document.getElementById('txtSenha');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    function mostrarAlerta(msg, sucesso = true) {
+      const banner = document.getElementById('alertBanner');
+      banner.className = 'alert-banner ' + (sucesso ? 'alert-success' : 'alert-danger');
+      banner.innerText = msg;
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 6000);
+    }
+
+    async function carregarConfig() {
+      try {
+        const resp = await fetch('/api/filebrowser/config');
+        const data = await resp.json();
+        document.getElementById('chkHabilitado').checked = !!data.habilitado;
+        document.getElementById('txtBaseUrl').value = data.base_url || 'https://1-filebrowser1.wvm3zj.easypanel.host';
+        document.getElementById('txtPasta').value = data.pasta_remota || 'home/opc/ti';
+        document.getElementById('txtUsuario').value = data.usuario || '';
+        document.getElementById('txtSenha').value = data.senha || '';
+      } catch (e) {
+        console.error('Erro ao carregar configurações:', e);
+      }
+    }
+
+    async function salvarConfig() {
+      const cfg = {
+        habilitado: document.getElementById('chkHabilitado').checked,
+        base_url: document.getElementById('txtBaseUrl').value.trim(),
+        pasta_remota: document.getElementById('txtPasta').value.trim(),
+        usuario: document.getElementById('txtUsuario').value.trim(),
+        senha: document.getElementById('txtSenha').value
+      };
+
+      try {
+        const resp = await fetch('/api/filebrowser/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cfg)
+        });
+        const res = await resp.json();
+        if (res.ok) {
+          mostrarAlerta('✔ Configurações salvas com sucesso!', true);
+        } else {
+          mostrarAlerta('Erro ao salvar: ' + (res.msg || 'erro desconhecido'), false);
+        }
+      } catch (e) {
+        mostrarAlerta('Erro de conexão ao salvar: ' + e.message, false);
+      }
+    }
+
+    async function testarSincronizacao() {
+      // Salva antes de testar
+      await salvarConfig();
+
+      const btn = document.getElementById('btnTestar');
+      const consoleBox = document.getElementById('logConsole');
+      btn.disabled = true;
+      btn.innerText = 'Enviando planilhas...';
+      consoleBox.innerText = 'Iniciando teste de conexão e envio de planilhas para a VPS...\n';
+
+      try {
+        const resp = await fetch('/api/filebrowser/testar', { method: 'POST' });
+        const res = await resp.json();
+        consoleBox.innerText = res.logs.join('\n');
+        if (res.ok) {
+          mostrarAlerta('✔ Planilhas sincronizadas com sucesso no Filebrowser!', true);
+        } else {
+          mostrarAlerta('✘ Ocorreu uma falha no envio. Veja o log abaixo.', false);
+        }
+      } catch (e) {
+        consoleBox.innerText += '\nErro na requisição: ' + e.message;
+        mostrarAlerta('Erro ao comunicar com o servidor: ' + e.message, false);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🚀 Testar e Sincronizar Agora';
+      }
+    }
+
+    window.onload = carregarConfig;
+  </script>
+</body>
+</html>
