@@ -467,10 +467,28 @@ def api_ssw_status():
             return jsonify({
                 "ativo": False,
                 "login_em": hora_str,
-                "mensagem": f"A sessão expirou no SSW (último login foi em {hora_str}). Execute o login manual para renovar."
+                "mensagem": f"A sessão expirou no SSW (último login foi em {hora_str}). Clique em 'Abrir Navegador' para renovar."
             })
     except Exception as e:
         return jsonify({"ativo": False, "mensagem": f"Erro ao testar sessão: {e}"})
+
+
+@app.route("/api/ssw/abrir_navegador", methods=["POST"])
+def api_ssw_abrir_navegador():
+    import subprocess
+    res = subprocess.run(["pgrep", "-f", "ssw_vnc_login.py"], capture_output=True)
+    if res.returncode != 0:
+        python_bin = sys.executable or "/opt/automacao/venv/bin/python"
+        script_path = str(BASE_DIR / "ssw_vnc_login.py")
+        subprocess.Popen([python_bin, "-u", script_path])
+    return jsonify({"ok": True})
+
+
+@app.route("/api/ssw/fechar_navegador", methods=["POST"])
+def api_ssw_fechar_navegador():
+    import subprocess
+    subprocess.run(["pkill", "-f", "ssw_vnc_login.py"])
+    return jsonify({"ok": True})
 
 @app.route("/")
 def index():

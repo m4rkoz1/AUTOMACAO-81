@@ -212,8 +212,30 @@
           <div id="ssw-status-desc" style="color: var(--text2); font-size: 0.85rem; margin-top: 2px;">Verificando conexão com o SSW</div>
         </div>
       </div>
+
+      <!-- Botão para abrir navegador visual no container -->
+      <div style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">
+        <button id="btnAbrirNav" onclick="abrirNavegadorSSW()" class="btn" style="background: var(--blue); color: white; padding: 10px 18px; border-radius: 8px; font-weight: 600;">
+          🖥 Abrir Navegador na Tela do reCAPTCHA
+        </button>
+        <span id="navLoadingText" style="display: none; font-size: 0.85rem; color: var(--text2);">Iniciando navegador no container...</span>
+      </div>
+
+      <!-- Container do Navegador Embutido (noVNC) -->
+      <div id="vncContainer" style="display: none; margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #000;">
+        <div style="background: var(--bg2); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border);">
+          <div style="font-size: 0.85rem; font-weight: 600; color: #7ee787; display: flex; align-items: center; gap: 8px;">
+            <span>👉 Clique na caixa "Não sou um robô" (reCAPTCHA) e clique no botão Login (►)</span>
+          </div>
+          <button onclick="fecharNavegadorSSW()" style="background: var(--bg3); border: 1px solid var(--border); color: #ff7b72; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; cursor: pointer;">
+            ✖ Fechar Navegador
+          </button>
+        </div>
+        <iframe id="vncIframe" src="" style="width: 100%; height: 700px; border: none; display: block;"></iframe>
+      </div>
+
       <div style="margin-top: 14px; font-size: 0.85rem; color: var(--text2); line-height: 1.5;">
-        💡 <b>Como funciona:</b> Faça o login <b>1x pela manhã</b> no seu PC usando o <code>login_manual.bat</code> (ou <code>python login_manual.py</code>). O servidor mantém o ping (keep-alive) automático a cada 8 minutos para a sessão <b>permanecer ativa o dia todo</b> sem pedir reCAPTCHA a cada execução.
+        💡 <b>Como funciona:</b> Basta clicar em <b>"Abrir Navegador na Tela do reCAPTCHA"</b>, marcar a caixa "Não sou um robô" e entrar. O container salva a sessão e o Keep-Alive a mantém viva o dia todo automaticamente.
       </div>
     </div>
 
@@ -383,6 +405,60 @@
         title.style.color = '#e3b341';
         desc.textContent = 'Erro ao consultar: ' + e.message;
       }
+    }
+
+    let checkInterval = null;
+
+    async function abrirNavegadorSSW() {
+      const btn = document.getElementById('btnAbrirNav');
+      const loading = document.getElementById('navLoadingText');
+      const vncBox = document.getElementById('vncContainer');
+      const iframe = document.getElementById('vncIframe');
+
+      btn.disabled = true;
+      loading.style.display = 'inline';
+
+      try {
+        await fetch('/api/ssw/abrir_navegador', { method: 'POST' });
+        setTimeout(() => {
+          iframe.src = window.location.protocol + '//' + window.location.hostname + ':6080/vnc_lite.html?autoconnect=true&resize=scale&reconnect=true';
+          vncBox.style.display = 'block';
+          btn.disabled = false;
+          loading.style.display = 'none';
+
+          if (checkInterval) clearInterval(checkInterval);
+          checkInterval = setInterval(async () => {
+            try {
+              const resp = await fetch('/api/ssw/status');
+              const data = await resp.json();
+              if (data.ativo) {
+                clearInterval(checkInterval);
+                checkInterval = null;
+                mostrarAlerta('🎉 Login concluído com sucesso! A sessão foi capturada e está ativa.', true);
+                fecharNavegadorSSW();
+                carregarStatusSSW();
+              }
+            } catch (e) {}
+          }, 3000);
+        }, 1500);
+      } catch (e) {
+        mostrarAlerta('Erro ao iniciar navegador: ' + e.message, false);
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    }
+
+    async function fecharNavegadorSSW() {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+        checkInterval = null;
+      }
+      document.getElementById('vncContainer').style.display = 'none';
+      document.getElementById('vncIframe').src = '';
+      try {
+        await fetch('/api/ssw/fechar_navegador', { method: 'POST' });
+      } catch (e) {}
+      carregarStatusSSW();
     }
 
     window.onload = () => {

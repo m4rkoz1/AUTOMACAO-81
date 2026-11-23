@@ -48,7 +48,8 @@ def main():
         'ARA.xlsx',
         'TRA.xlsx',
         'relatorio_036.xlsx',
-        'storage_state.json'
+        'storage_state.json',
+        'ssw_vnc_login.py'
     ]
 
     for f in files_to_upload:
