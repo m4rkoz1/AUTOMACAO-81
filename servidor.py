@@ -473,22 +473,38 @@ def api_ssw_status():
         return jsonify({"ativo": False, "mensagem": f"Erro ao testar sessão: {e}"})
 
 
+_vnc_login_proc = None
+
 @app.route("/api/ssw/abrir_navegador", methods=["POST"])
 def api_ssw_abrir_navegador():
+    global _vnc_login_proc
     import subprocess
-    res = subprocess.run(["pgrep", "-f", "ssw_vnc_login.py"], capture_output=True)
-    if res.returncode != 0:
-        python_bin = sys.executable or "/opt/automacao/venv/bin/python"
-        script_path = str(BASE_DIR / "ssw_vnc_login.py")
-        subprocess.Popen([python_bin, "-u", script_path])
-    return jsonify({"ok": True})
+    import sys
+    try:
+        if _vnc_login_proc is None or _vnc_login_proc.poll() is not None:
+            python_bin = "/opt/automacao/venv/bin/python" if os.path.exists("/opt/automacao/venv/bin/python") else sys.executable
+            script_path = str(BASE_DIR / "ssw_vnc_login.py")
+            _vnc_login_proc = subprocess.Popen([python_bin, "-u", script_path])
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/api/ssw/fechar_navegador", methods=["POST"])
 def api_ssw_fechar_navegador():
-    import subprocess
-    subprocess.run(["pkill", "-f", "ssw_vnc_login.py"])
-    return jsonify({"ok": True})
+    global _vnc_login_proc
+    try:
+        if _vnc_login_proc and _vnc_login_proc.poll() is None:
+            _vnc_login_proc.terminate()
+            _vnc_login_proc = None
+        try:
+            import subprocess
+            subprocess.run(["pkill", "-f", "ssw_vnc_login.py"], capture_output=True)
+        except Exception:
+            pass
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 @app.route("/")
 def index():
