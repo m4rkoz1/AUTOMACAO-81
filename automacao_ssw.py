@@ -591,38 +591,37 @@ async def executar_automacao():
                 log(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
                 try:
-                    # Trocar filial se não for a padrão (RJO)
-                    if filial != "RJO":
-                        import time
-                        log(f"Mudando filial para {filial} via chamada POST TRO...")
-                        await page.goto("https://tms.ssw.inf.br/bin/menu01", wait_until="domcontentloaded")
-                        try:
-                            await page.wait_for_load_state("networkidle", timeout=10_000)
-                        except PlaywrightTimeout:
-                            pass
+                    # Garante a filial correta na sessão (inclusive RJO)
+                    import time
+                    log(f"Garantindo filial {filial} na sessão via chamada POST TRO...")
+                    await page.goto("https://tms.ssw.inf.br/bin/menu01", wait_until="domcontentloaded")
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=10_000)
+                    except PlaywrightTimeout:
+                        pass
 
-                        try:
-                            await page.fill('input[id="2"]', filial)
-                            await asyncio.sleep(0.3)
-                        except Exception:
-                            pass
+                    try:
+                        await page.fill('input[id="2"]', filial)
+                        await asyncio.sleep(0.3)
+                    except Exception:
+                        pass
 
-                        dummy = str(int(time.time() * 1000))
-                        await page.evaluate(f"""
-                            () => {{
-                                return new Promise((resolve) => {{
-                                    const xhr = new XMLHttpRequest();
-                                    xhr.open('POST', '/bin/menu01', true);
-                                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                                    xhr.onreadystatechange = function() {{
-                                        if (xhr.readyState === 4) resolve(xhr.status);
-                                    }};
-                                    xhr.send('act=TRO&f2={filial}&f3=52&menu01=1&dummy={dummy}');
-                                }});
-                            }}
-                        """)
-                        log(f"Sessão atualizada para filial {filial}.")
-                        await asyncio.sleep(1.5)
+                    dummy = str(int(time.time() * 1000))
+                    await page.evaluate(f"""
+                        () => {{
+                            return new Promise((resolve) => {{
+                                const xhr = new XMLHttpRequest();
+                                xhr.open('POST', '/bin/menu01', true);
+                                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                                xhr.onreadystatechange = function() {{
+                                    if (xhr.readyState === 4) resolve(xhr.status);
+                                }};
+                                xhr.send('act=TRO&f2={filial}&f3=52&menu01=1&dummy={dummy}');
+                            }});
+                        }}
+                    """)
+                    log(f"Sessão confirmada para filial {filial}.")
+                    await asyncio.sleep(1.5)
 
                     # Passo 2: Navegar
                     await navegar_para_relatorio(page)
