@@ -92,8 +92,20 @@ def _data_hoje() -> str:
 # ─────────────────────────────────────────────────────
 #  PASSO 1: LOGIN
 # ─────────────────────────────────────────────────────
-async def fazer_login(page):
+async def fazer_login(page, context=None):
     log("=== PASSO 1: LOGIN ===")
+
+    # Se já existir sessão ativa (ex: storage_state carregado), verifica menu01
+    try:
+        log("Verificando se já existe sessão ativa...")
+        await page.goto("https://tms.ssw.inf.br/bin/menu01", wait_until="domcontentloaded", timeout=12_000)
+        await asyncio.sleep(1)
+        if "ssw0422" not in page.url and ("menu01" in page.url or "ssw" in page.url):
+            log(f"✔ Sessão já ativa/autenticada → URL: {page.url}")
+            return
+    except Exception:
+        pass
+
     log(f"Abrindo: {CONFIG['url_login']}")
 
     resp = await page.goto(CONFIG["url_login"], wait_until="domcontentloaded")
@@ -134,6 +146,15 @@ async def fazer_login(page):
 
     log(f"✔ Login OK → URL: {page.url}")
     await _screenshot(page, "01_pos_login")
+
+    # Salva storage_state para reaproveitar
+    if context:
+        try:
+            storage_file = BASE_DIR / "storage_state.json"
+            await context.storage_state(path=str(storage_file))
+            log("✔ Sessão de autenticação salva com sucesso (storage_state.json).")
+        except Exception as e_save:
+            log(f"⚠ Não foi possível salvar storage_state: {e_save}")
 
 
 # ─────────────────────────────────────────────────────
@@ -512,13 +533,19 @@ async def executar_automacao():
             ]
         )
 
-        context = await browser.new_context(
-            accept_downloads=True,
-            viewport={"width": 1400, "height": 900},
-            ignore_https_errors=True,
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            locale="pt-BR",
-        )
+        storage_file = BASE_DIR / "storage_state.json"
+        context_kwargs = {
+            "accept_downloads": True,
+            "viewport": {"width": 1400, "height": 900},
+            "ignore_https_errors": True,
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "locale": "pt-BR",
+        }
+        if storage_file.exists():
+            log(f"Carregando sessão existente de {storage_file.name}...")
+            context_kwargs["storage_state"] = str(storage_file)
+
+        context = await browser.new_context(**context_kwargs)
 
         page = await context.new_page()
         page.on("dialog", lambda dialog: asyncio.create_task(dialog.accept()))
@@ -526,7 +553,7 @@ async def executar_automacao():
 
         try:
             # Passo 1: Login
-            await fazer_login(page)
+            await fazer_login(page, context)
 
             # Passo 2: Filial MTZ + Relatório 036 (abre popup)
             popup = await selecionar_filial_e_relatorio(page, context)

@@ -47,7 +47,8 @@ def main():
         'BAR.xlsx',
         'ARA.xlsx',
         'TRA.xlsx',
-        'relatorio_036.xlsx'
+        'relatorio_036.xlsx',
+        'storage_state.json'
     ]
 
     for f in files_to_upload:
