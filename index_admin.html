@@ -197,6 +197,26 @@
 
     <div id="alertBanner" class="alert-banner"></div>
 
+    <!-- Card Status Sessão SSW -->
+    <div class="card" style="border-left: 4px solid var(--blue);">
+      <div class="card-title">
+        <span>🔐 Status da Sessão SSW (TMS)</span>
+        <button onclick="carregarStatusSSW()" style="margin-left: auto; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          🔄 Checar Status
+        </button>
+      </div>
+      <div id="ssw-status-box" style="padding: 14px 18px; border-radius: 8px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; gap: 14px;">
+        <div id="ssw-dot" style="width: 14px; height: 14px; border-radius: 50%; background: #8b949e; flex-shrink: 0;"></div>
+        <div style="flex: 1;">
+          <div id="ssw-status-title" style="font-weight: 600; font-size: 0.95rem;">Consultando sessão...</div>
+          <div id="ssw-status-desc" style="color: var(--text2); font-size: 0.85rem; margin-top: 2px;">Verificando conexão com o SSW</div>
+        </div>
+      </div>
+      <div style="margin-top: 14px; font-size: 0.85rem; color: var(--text2); line-height: 1.5;">
+        💡 <b>Como funciona:</b> Faça o login <b>1x pela manhã</b> no seu PC usando o <code>login_manual.bat</code> (ou <code>python login_manual.py</code>). O servidor mantém o ping (keep-alive) automático a cada 8 minutos para a sessão <b>permanecer ativa o dia todo</b> sem pedir reCAPTCHA a cada execução.
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">🔐 Acesso ao Filebrowser</div>
       
@@ -335,7 +355,40 @@
       }
     }
 
-    window.onload = carregarConfig;
+    async function carregarStatusSSW() {
+      const dot = document.getElementById('ssw-dot');
+      const title = document.getElementById('ssw-status-title');
+      const desc = document.getElementById('ssw-status-desc');
+      dot.style.background = '#8b949e';
+      title.textContent = 'Verificando com o SSW...';
+      title.style.color = '#e6edf3';
+
+      try {
+        const resp = await fetch('/api/ssw/status');
+        const data = await resp.json();
+        if (data.ativo) {
+          dot.style.background = '#2ea043';
+          title.textContent = 'Sessão Ativa e Conectada ✔';
+          title.style.color = '#3fb950';
+          desc.textContent = data.mensagem;
+        } else {
+          dot.style.background = '#f85149';
+          title.textContent = 'Sessão Expirada ou Inexistente ⚠';
+          title.style.color = '#f85149';
+          desc.textContent = data.mensagem;
+        }
+      } catch (e) {
+        dot.style.background = '#e3b341';
+        title.textContent = 'Status Indisponível';
+        title.style.color = '#e3b341';
+        desc.textContent = 'Erro ao consultar: ' + e.message;
+      }
+    }
+
+    window.onload = () => {
+      carregarConfig();
+      carregarStatusSSW();
+    };
   </script>
 </body>
 </html>

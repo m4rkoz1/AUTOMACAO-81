@@ -108,3 +108,4 @@ if __name__ == "__main__":
         asyncio.run(login_interativo())
     except KeyboardInterrupt:
         print("\nCancelado pelo usuário.")
+

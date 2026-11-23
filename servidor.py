@@ -24,9 +24,10 @@ def get_agora():
 
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, send_file
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 import automacao_ssw
 import automacao_036
@@ -82,7 +83,7 @@ def carregar_config() -> list:
 def reconstruir_scheduler(agendamentos: list):
     """Remove todos os jobs da 081 e recria com a lista atual."""
     for job in scheduler.get_jobs():
-        if not job.id.startswith("job036_"):
+        if job.id.startswith("job_"):
             job.remove()
 
     for ag in agendamentos:
@@ -99,7 +100,7 @@ def reconstruir_scheduler(agendamentos: list):
 
 
 def atualizar_proximo():
-    jobs = [j for j in scheduler.get_jobs() if not j.id.startswith("job036_")]
+    jobs = [j for j in scheduler.get_jobs() if j.id.startswith("job_")]
     if jobs:
         proximos = [getattr(j, "next_run_time", None) for j in jobs]
         proximos = [p for p in proximos if p is not None]
@@ -395,6 +396,82 @@ def api_filebrowser_testar():
     ok = upload_filebrowser.upload_para_filebrowser(log_fn=coletar_log)
     return jsonify({"ok": ok, "logs": logs})
 
+
+# ─────────────────────────────────────────────────────
+#  KEEP-ALIVE E STATUS SSW (Sessão Diária)
+# ─────────────────────────────────────────────────────
+def keepalive_ssw_job():
+    """Mantém a sessão do SSW ativa no Proxmox enviando um ping a cada 8 minutos."""
+    storage_file = BASE_DIR / "storage_state.json"
+    if not storage_file.exists():
+        return
+    try:
+        with open(storage_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        cookies = {c["name"]: c["value"] for c in data.get("cookies", []) if "ssw" in c.get("domain", "")}
+        if not cookies:
+            return
+
+        import httpx
+        r = httpx.get(
+            "https://tms.ssw.inf.br/bin/menu01",
+            cookies=cookies,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            },
+            timeout=15.0,
+            follow_redirects=True
+        )
+        if "ssw0422" not in str(r.url) and r.status_code == 200:
+            pass
+    except Exception:
+        pass
+
+
+@app.route("/api/ssw/status", methods=["GET"])
+def api_ssw_status():
+    storage_file = BASE_DIR / "storage_state.json"
+    if not storage_file.exists():
+        return jsonify({
+            "ativo": False,
+            "mensagem": "Nenhuma sessão salva no servidor. Execute 'python login_manual.py' no seu computador."
+        })
+    try:
+        with open(storage_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        cookies = {c["name"]: c["value"] for c in data.get("cookies", []) if "ssw" in c.get("domain", "")}
+        if not cookies:
+            return jsonify({
+                "ativo": False,
+                "mensagem": "Arquivo storage_state.json não possui cookies válidos."
+            })
+
+        import httpx
+        r = httpx.get(
+            "https://tms.ssw.inf.br/bin/menu01",
+            cookies=cookies,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"},
+            timeout=10.0,
+            follow_redirects=True
+        )
+        mtime = datetime.fromtimestamp(os.path.getmtime(storage_file), TZ_BR)
+        hora_str = mtime.strftime("%d/%m às %H:%M")
+
+        if "ssw0422" not in str(r.url) and r.status_code == 200:
+            return jsonify({
+                "ativo": True,
+                "login_em": hora_str,
+                "mensagem": f"Sessão ativa e válida (Login registrado em {hora_str}). Keep-alive mantendo a sessão viva o dia todo."
+            })
+        else:
+            return jsonify({
+                "ativo": False,
+                "login_em": hora_str,
+                "mensagem": f"A sessão expirou no SSW (último login foi em {hora_str}). Execute o login manual para renovar."
+            })
+    except Exception as e:
+        return jsonify({"ativo": False, "mensagem": f"Erro ao testar sessão: {e}"})
+
 @app.route("/")
 def index():
     return '''
@@ -458,6 +535,15 @@ def main():
     # Carrega agendamentos da 036
     agendamentos_036 = carregar_config_036()
     reconstruir_scheduler_036(agendamentos_036)
+
+    # Job Keep-Alive para manter a sessão do SSW ativa o dia todo
+    scheduler.add_job(
+        keepalive_ssw_job,
+        IntervalTrigger(minutes=8),
+        id="keepalive_ssw",
+        name="SSW Keep-Alive Ping",
+        replace_existing=True,
+    )
 
     scheduler.start()
 
